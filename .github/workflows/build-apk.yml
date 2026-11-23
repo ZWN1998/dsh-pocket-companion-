@@ -46,6 +46,13 @@ jobs:
         working-directory: packages/mobile-app/flutter
         run: cp AndroidManifest.custom.xml android/app/src/main/AndroidManifest.xml
 
+      - name: 提高 compileSdk 到 37（部分插件传递依赖要求 37）
+        working-directory: packages/mobile-app/flutter
+        run: |
+          echo "flutter.compileSdkVersion=37" >> android/gradle.properties
+          echo "flutter.targetSdkVersion=37" >> android/gradle.properties
+          cat android/gradle.properties
+
       - name: 拉取依赖
         working-directory: packages/mobile-app/flutter
         run: flutter pub get

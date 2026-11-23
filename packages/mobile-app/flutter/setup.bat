@@ -83,6 +83,12 @@ if exist "AndroidManifest.custom.xml" (
   echo [3/4] 无备份可恢复
 )
 
+REM --- 4.5 提高 compileSdk 到 37（部分插件传递依赖要求 37）---
+if exist "android\gradle.properties" (
+  echo flutter.compileSdkVersion=37>> "android\gradle.properties"
+  echo flutter.targetSdkVersion=37>> "android\gradle.properties"
+)
+
 REM --- 5. 拉依赖并构建 ---
 echo [4/4] 拉取依赖并构建 Release APK...
 call flutter pub get
