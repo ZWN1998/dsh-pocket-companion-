@@ -58,8 +58,10 @@ class PairConfig {
   final String token;
   final String mesh;
   final String secret;
+  final String tunnelIp;
+  final List<String> peers;
   PairConfig({required this.host, required this.port, required this.token,
-    required this.mesh, required this.secret});
+    required this.mesh, required this.secret, this.tunnelIp = '', this.peers = const []});
 
   String get endpoint => 'http://$host:$port';
   String get webUrl => token.isEmpty
@@ -67,10 +69,33 @@ class PairConfig {
       : '$endpoint/?token=${Uri.encodeComponent(token)}';
 
   Map<String, dynamic> toMap() => {
-    'host': host, 'port': port, 'token': token, 'mesh': mesh, 'secret': secret};
+    'host': host, 'port': port, 'token': token, 'mesh': mesh, 'secret': secret,
+    'tunnelIp': tunnelIp, 'peers': peers};
   factory PairConfig.fromMap(Map<String, dynamic> m) => PairConfig(
     host: m['host'] ?? '', port: m['port'] ?? 3081, token: m['token'] ?? '',
-    mesh: m['mesh'] ?? '', secret: m['secret'] ?? '');
+    mesh: m['mesh'] ?? '', secret: m['secret'] ?? '',
+    tunnelIp: m['tunnelIp'] ?? '',
+    peers: (m['peers'] as List?)?.map((e) => e.toString()).toList() ?? const []);
+
+  /// 可粘贴进 EasyTier 官方 App 的 TOML（与编排核心/PWA 同格式）。
+  String buildEasyTierToml() {
+    final list = peers.isNotEmpty ? peers : ['tcp://47.103.35.100:11010'];
+    final peerBlocks = list.map((p) => '[[peer]]\nuri = "$p"').join('\n\n');
+    return [
+      '# DSH Pocket 隧道配置（复制进 EasyTier App → 配置）',
+      'instance_name = "dshpocket"',
+      'ipv4 = "${tunnelIp.isEmpty ? '10.110.119.70' : tunnelIp}"',
+      'dhcp = false',
+      'listeners = []',
+      '',
+      '[network_identity]',
+      'network_name = "$mesh"',
+      'network_secret = "$secret"',
+      '',
+      peerBlocks,
+      '',
+    ].join('\n');
+  }
 }
 
 /// 配对链接解析：dshpocket://connect?mesh=&secret=&host=&port=&token=
@@ -94,17 +119,22 @@ PairConfig parsePairLink(String raw) {
       throw const FormatException('配置缺少必要参数（mesh / secret / host）');
     }
     return PairConfig(host: host, port: int.tryParse(q['port'] ?? '3081') ?? 3081,
-      token: token, mesh: mesh, secret: secret);
+      token: token, mesh: mesh, secret: secret,
+      peers: q['peers']?.split(',').where((s) => s.isNotEmpty).toList() ?? const [],
+      tunnelIp: q['tunnelIp'] ?? '');
   }
   final host = u.host;
   if (host.isEmpty) throw const FormatException('无法识别的主机');
   return PairConfig(host: host, port: u.port == 0 ? 3081 : u.port,
-    token: token, mesh: q['mesh'] ?? '', secret: q['secret'] ?? '');
+    token: token, mesh: q['mesh'] ?? '', secret: q['secret'] ?? '',
+    peers: q['peers']?.split(',').where((s) => s.isNotEmpty).toList() ?? const [],
+    tunnelIp: q['tunnelIp'] ?? '');
 }
 
 class AppState extends ChangeNotifier {
   PairConfig? config;
   bool connected = false;
+  bool pendingGuide = false; // EasyTier 隧道引导浮层是否显示（非阻塞，可随时关）
   int latency = 23;
   int balanceMb = 1200;
   String lastCheckin = '';
@@ -137,12 +167,25 @@ class AppState extends ChangeNotifier {
   Future<void> applyPair(PairConfig cfg) async {
     config = cfg;
     connected = false;
+    // 新配对带了隧道参数（peers/tunnelIp）时自动弹一次引导，帮用户装官方 EasyTier
+    final hasTunnel = cfg.peers.isNotEmpty || cfg.tunnelIp.isNotEmpty;
+    pendingGuide = hasTunnel;
     await save();
     notifyListeners();
     await Future.delayed(const Duration(milliseconds: 1400));
     connected = true;
     latency = 18 + (DateTime.now().millisecond % 16);
     await save();
+    notifyListeners();
+  }
+
+  void openTunnelGuide() {
+    pendingGuide = true;
+    notifyListeners();
+  }
+
+  void dismissGuide() {
+    pendingGuide = false;
     notifyListeners();
   }
 
@@ -178,11 +221,11 @@ class _PocketAppState extends State<PocketApp> {
   @override
   void initState() {
     super.initState();
-    state.load();
     _initLinks();
   }
 
   void _initLinks() async {
+    await state.load(); // 先载入持久化状态，避免深链配置被随后的异步 load 覆盖
     final links = AppLinks();
     final initial = await links.getInitialLink();
     if (initial != null) _handleLink(initial.toString());
@@ -238,19 +281,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    Widget body;
-    if (_conversation) {
-      body = ConversationScreen(state: widget.state, onBack: () => setState(() => _conversation = false));
-    } else {
-      body = switch (_tab) {
-        0 => ConnectTab(state: widget.state, onScan: _scan, onOpen: () => setState(() => _conversation = true)),
-        1 => const TrafficTab(),
-        2 => const MemberTab(),
-        _ => const ProfileTab(),
-      };
-    }
+    // 用 IndexedStack 让 4 个 tab 与对话页常驻，避免切换/进入对话页时重建 WebView
+    // （重建会重新 loadRequest 整页重载，是卡顿主因）。位置固定 → Flutter 复用 State。
+    const convIndex = 4;
+    final pages = <Widget>[
+      ConnectTab(state: widget.state, onScan: _scan, onOpen: () => setState(() => _conversation = true)),
+      const TrafficTab(),
+      const MemberTab(),
+      const ProfileTab(),
+      ConversationScreen(state: widget.state, onBack: () => setState(() => _conversation = false)),
+    ];
     return Scaffold(
-      body: SafeArea(child: body),
+      body: Stack(children: [
+        SafeArea(child: IndexedStack(index: _conversation ? convIndex : _tab, children: pages)),
+        if (widget.state.pendingGuide)
+          GuideOverlay(
+            toml: widget.state.config?.buildEasyTierToml() ?? '',
+            onDone: () => widget.state.dismissGuide(),
+            onClose: () => widget.state.dismissGuide(),
+          ),
+      ]),
       bottomNavigationBar: _conversation
           ? const SizedBox.shrink()
           : NavigationBar(
@@ -273,6 +323,90 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(builder: (_) => const ScanScreen()),
     );
     if (result != null) widget.onLink(result);
+  }
+}
+
+// ---------- 隧道客户端引导（配对后，方案 A：内嵌引导，不改/不打包 LGPL 源码）----------
+const wgInstallUrl = 'https://play.google.com/store/apps/details?id=com.wireguard.android';
+const etInstallUrl = 'https://github.com/EasyTier/EasyTier/releases/tag/v2.6.4';
+
+class GuideOverlay extends StatelessWidget {
+  final String toml;
+  final VoidCallback onDone;
+  final VoidCallback onClose;
+  const GuideOverlay({super.key, required this.toml, required this.onDone, required this.onClose});
+
+  Widget _section({required String badge, required String name, required List<String> steps,
+      required String installLabel, required String installUrl, String? config}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: line)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(color: accent.withOpacity(.12), borderRadius: BorderRadius.circular(8)),
+            child: Text(badge, style: const TextStyle(fontSize: 10, color: accent))),
+        ]),
+        const SizedBox(height: 8),
+        ...steps.map((s) => Padding(padding: const EdgeInsets.only(bottom: 4),
+          child: Text('• $s', style: const TextStyle(fontSize: 12, color: muted)))),
+        const SizedBox(height: 6),
+        Row(children: [
+          Expanded(child: Text(installLabel, style: const TextStyle(fontSize: 11, color: muted2))),
+          TextButton(onPressed: () => _copy(installUrl),
+            child: const Text('复制安装链接', style: TextStyle(fontSize: 11, color: accent))),
+        ]),
+        if (config != null) ...[
+          const SizedBox(height: 6),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: const Color(0xFF0B0E13), borderRadius: BorderRadius.circular(10)),
+            child: Text(config, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: textMain))),
+          Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => _copy(config),
+            child: const Text('复制配置', style: TextStyle(fontSize: 11, color: accent)))),
+        ],
+      ]),
+    );
+  }
+
+  void _copy(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xCC0A0C10),
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('配置手机隧道', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            const Text('选择一种方式，让手机连上电脑的加密网络',
+              style: TextStyle(fontSize: 12, color: muted), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            _section(badge: '扫码 · 推荐', name: 'WireGuard 官方客户端',
+              steps: const ['1. 安装 WireGuard App', '2. 电脑端生成配对二维码', '3. App 内 Import from QR code 扫码'],
+              installLabel: wgInstallUrl, installUrl: wgInstallUrl),
+            const SizedBox(height: 12),
+            _section(badge: '粘贴配置', name: 'EasyTier 官方客户端',
+              steps: const ['1. 安装 EasyTier App', '2. 复制下方配置', '3. App 内新建配置并粘贴'],
+              installLabel: etInstallUrl, installUrl: etInstallUrl, config: toml),
+            const SizedBox(height: 16),
+            SizedBox(width: double.infinity, height: 50, child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: accent,
+                foregroundColor: const Color(0xFF04120F),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              onPressed: onDone, child: const Text('我已配置好，连接'),),),
+            const SizedBox(height: 6),
+            TextButton(onPressed: onClose, child: const Text('稍后再说', style: TextStyle(color: muted))),
+          ]),
+        ),
+      ),
+    );
   }
 }
 
@@ -336,8 +470,8 @@ class ConnectTab extends StatelessWidget {
             Expanded(child: OutlinedButton.icon(onPressed: onScan,
               icon: const Icon(Icons.qr_code_scanner, size: 16), label: const Text('扫一扫'))),
             const SizedBox(width: 10),
-            Expanded(child: OutlinedButton.icon(onPressed: () {},
-              icon: const Icon(Icons.swap_horiz, size: 16), label: const Text('切换中继'))),
+            Expanded(child: OutlinedButton.icon(onPressed: state.openTunnelGuide,
+              icon: const Icon(Icons.vpn_lock, size: 16), label: const Text('隧道配置'))),
           ]),
           const SizedBox(height: 18),
           Container(width: double.infinity, padding: const EdgeInsets.all(14),
@@ -544,16 +678,34 @@ class ConversationScreen extends StatefulWidget {
 class _ConversationScreenState extends State<ConversationScreen> {
   late final WebViewController _web;
   bool _ready = false;
+  String? _loadedUrl; // 已加载的 url，避免重复 loadRequest
+
+  void _maybeLoad() {
+    final url = widget.state.config?.webUrl;
+    if (url != null && url.isNotEmpty && url != _loadedUrl) {
+      _loadedUrl = url;
+      _web.loadRequest(Uri.parse(url));
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      // 现代移动 UA：避免站点按老内核降级渲染，减少卡顿
+      ..setUserAgent('Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36')
       ..setNavigationDelegate(NavigationDelegate(onPageFinished: (_) {
-        setState(() => _ready = true);
-      }))
-      ..loadRequest(Uri.parse(widget.state.config?.webUrl ?? 'about:blank'));
+        if (mounted) setState(() => _ready = true);
+      }));
+    _maybeLoad();
+  }
+
+  @override
+  void didUpdateWidget(ConversationScreen old) {
+    super.didUpdateWidget(old);
+    _maybeLoad(); // 配对配置晚到时，只加载一次真正的 URL
   }
 
   @override
