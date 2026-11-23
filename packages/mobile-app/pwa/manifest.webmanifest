@@ -1,0 +1,14 @@
+{
+  "name": "口袋 DSH — 手机互通",
+  "short_name": "口袋 DSH",
+  "description": "通过加密 P2P 在手机上访问电脑上的 DSH 对话",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0C10",
+  "theme_color": "#0A0C10",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

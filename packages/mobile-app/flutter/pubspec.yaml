@@ -1,0 +1,40 @@
+name: dshpocket
+description: 口袋 DSH — 通过加密 P2P 在手机上访问电脑上的 DSH 对话
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: any
+  # 扫码：ML Kit 条码扫描（离线可用）
+  mobile_scanner: any
+  # 本地持久化（配对配置/签到状态）
+  shared_preferences: any
+  # 内嵌 WebView 加载 PWA / 配对后的 DSH Web
+  webview_flutter: any
+  # 网络检测
+  connectivity_plus: any
+  # URL 唤起 / 深链
+  app_links: any
+  # 权限
+  permission_handler: any
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: any
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/pwa/
+
+# 说明：
+# 1) 依赖用 any 让 pub 自动解析与当前 Flutter/Dart 版本兼容的最新版，
+#    避免写死版本导致 pub get 失败。正式发布前可 flutter pub get 后
+#    用 flutter pub deps 锁定具体版本改回 ^x.y.z。
+# 2) assets/pwa 与 ../pwa/ 相同，随 App 打包，可离线展示引导页。

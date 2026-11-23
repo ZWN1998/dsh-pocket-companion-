@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "手机互通",
+    "description": "扫码即可通过加密 P2P 让手机访问电脑上的 DSH。",
+    "detail": "docs/DETAIL.md"
+  }
+}

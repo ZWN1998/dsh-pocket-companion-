@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Phone Companion",
+    "description": "Scan a QR to connect your phone to DSH over encrypted P2P.",
+    "detail": "docs/DETAIL.md"
+  }
+}

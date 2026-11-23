@@ -1,0 +1,30 @@
+# 依赖
+node_modules/
+.pnp/
+.pnp.js
+
+# 构建产物
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+*.apk
+
+# IDE / 系统
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# 本次调试产生的临时文件
+_screenshots/
+*.custom.xml
+local.properties
+key.properties
+
+# 敏感信息：真实配对 PIN / 二维码截图不要进仓库
+*pocket.status*.json

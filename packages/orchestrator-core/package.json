@@ -1,0 +1,22 @@
+{
+  "name": "@dsh-pocket/orchestrator-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.mjs",
+  "bin": { "dshpocket": "src/cli.mjs" },
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": ["src", "vendor"],
+  "licenseNote": "vendor/qrcode.cjs is MIT (Kazuhiko Arase)",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "start": "node src/cli.mjs"
+  },
+  "dependencies": {
+    "@dsh-pocket/shared": "workspace:*"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

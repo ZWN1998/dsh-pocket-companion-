@@ -1,0 +1,12 @@
+{
+  "name": "@dsh-pocket/mobile-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "口袋 DSH 手机端（PWA + Flutter 原生壳源码）",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "serve": "node serve.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}

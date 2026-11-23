@@ -1,0 +1,9 @@
+# 云端 Linux 构建需要 LF，强制规范化，避免 CRLF 导致脚本/Gradle 报错
+* text=auto eol=lf
+
+# 二进制文件不转换
+*.png binary
+*.ico binary
+*.jpg binary
+*.apk binary
+*.jar binary
