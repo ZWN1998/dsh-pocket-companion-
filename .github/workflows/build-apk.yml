@@ -53,11 +53,13 @@ jobs:
           echo "flutter.targetSdkVersion=37" >> android/gradle.properties
           cat android/gradle.properties
 
-      - name: 禁用 release lint（规避 Android Lint 内部崩溃）
-        working-directory: packages/mobile-app/flutter
+      - name: 全局禁用 lintVital（规避 Flutter 3.50 + AGP 的 Android Lint 内部崩溃）
+        # Flutter 3.50 用 Kotlin DSL，且崩溃发生在依赖模块的 lintVital 任务；
+        # 用全局 init.gradle 在任务图就绪时禁用所有 lintVital*，绕开具体文件名与模块层级。
         run: |
-          perl -0pi -e 's/android \{/android {\n    lint {\n        checkReleaseBuilds false\n        abortOnError false\n    }\n/' android/app/build.gradle
-          grep -n -A4 "android {" android/app/build.gradle | head -8
+          mkdir -p "$HOME/.gradle"
+          echo 'gradle.taskGraph.whenReady { g -> g.allTasks.findAll { it.name.startsWith("lintVital") }.each { it.enabled = false } }' > "$HOME/.gradle/init.gradle"
+          cat "$HOME/.gradle/init.gradle"
 
       - name: 拉取依赖
         working-directory: packages/mobile-app/flutter
