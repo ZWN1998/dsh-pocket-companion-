@@ -559,17 +559,22 @@ class _ConversationScreenState extends State<ConversationScreen> {
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      Container(height: 60, padding: const EdgeInsets.symmetric(horizontal: 8),
+      Container(height: 46, padding: const EdgeInsets.symmetric(horizontal: 4),
         decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: line))),
         child: Row(children: [
-          IconButton(onPressed: widget.onBack, icon: const Icon(Icons.arrow_back, color: muted)),
+          SizedBox(width: 36, height: 36, child: IconButton(
+            onPressed: widget.onBack,
+            icon: const Icon(Icons.arrow_back, color: muted, size: 18),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          )),
           Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Text('重构登录模块', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            const Text('重构登录模块', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               overflow: TextOverflow.ellipsis),
             Text('通过加密 P2P 连接 · ${widget.state.latency} ms',
-              style: const TextStyle(color: accent, fontSize: 10)),
+              style: const TextStyle(color: accent, fontSize: 9)),
           ])),
-          const SizedBox(width: 40),
+          const SizedBox(width: 36),
         ])),
       if (!_ready && widget.state.config == null)
         const Expanded(child: Center(child: Text('请先扫码连接电脑', style: TextStyle(color: muted)))),
