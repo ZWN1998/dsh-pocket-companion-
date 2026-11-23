@@ -53,6 +53,12 @@ jobs:
           echo "flutter.targetSdkVersion=37" >> android/gradle.properties
           cat android/gradle.properties
 
+      - name: 禁用 release lint（规避 Android Lint 内部崩溃）
+        working-directory: packages/mobile-app/flutter
+        run: |
+          perl -0pi -e 's/android \{/android {\n    lint {\n        checkReleaseBuilds false\n        abortOnError false\n    }\n/' android/app/build.gradle
+          grep -n -A4 "android {" android/app/build.gradle | head -8
+
       - name: 拉取依赖
         working-directory: packages/mobile-app/flutter
         run: flutter pub get
