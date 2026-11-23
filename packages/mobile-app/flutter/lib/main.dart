@@ -13,6 +13,22 @@ import 'package:webview_flutter/webview_flutter.dart';
 /// 配对后的 DSH Web（http://host:port/?token=PIN）。UI 设计语言与 PWA 一致。
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // 兜底：任何未捕获的 build 异常显示可见错误页，而不是 release 黑屏，便于定位问题
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+  };
+  ErrorWidget.builder = (details) {
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Container(
+        color: const Color(0xFF0A0C10),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(24),
+        child: Text('界面出错：${details.exception}',
+            style: const TextStyle(color: Color(0xFFF0716E), fontSize: 14)),
+      ),
+    );
+  };
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Color(0xFF0A0C10),
     statusBarIconBrightness: Brightness.light,
@@ -348,9 +364,14 @@ class ScanScreen extends StatefulWidget {
 class _ScanScreenState extends State<ScanScreen> {
   final _ctrl = MobileScannerController();
   final _text = TextEditingController();
+  bool _doneOnce = false; // 防止相机每帧重复识别导致对已销毁 context 再次 pop（release 黑屏）
 
   void _done(String? code) {
-    if (code != null && code.isNotEmpty) Navigator.of(context).pop(code);
+    if (_doneOnce) return; // 只处理第一次识别
+    if (code == null || code.isEmpty) return;
+    _doneOnce = true;
+    if (!mounted) return;
+    Navigator.of(context).pop(code);
   }
 
   @override
