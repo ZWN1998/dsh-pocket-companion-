@@ -359,11 +359,12 @@ class _ScanScreenState extends State<ScanScreen> {
       backgroundColor: stage,
       appBar: AppBar(title: const Text('扫一扫'), backgroundColor: stage,
         leading: IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close))),
-      body: Padding(padding: const EdgeInsets.all(20), children: [
+      body: SingleChildScrollView(
+        child: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
         SizedBox(height: 260, child: ClipRRect(borderRadius: BorderRadius.circular(16),
           child: MobileScanner(controller: _ctrl, onDetect: (c) {
-            final raw = c.barcodes.firstOrNull?.rawValue;
-            _done(raw);
+            final codes = c.barcodes;
+            if (codes.isNotEmpty) _done(codes.first.rawValue);
           }))),
         const SizedBox(height: 18),
         const Text('或粘贴配对链接', style: TextStyle(color: muted, fontSize: 12)),
@@ -376,7 +377,8 @@ class _ScanScreenState extends State<ScanScreen> {
         SizedBox(width: double.infinity, height: 46, child: ElevatedButton(
           style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: const Color(0xFF04120F)),
           onPressed: () => _done(_text.text), child: const Text('识别配置'))),
-      ]),
+        ])),
+      ),
     );
   }
 
